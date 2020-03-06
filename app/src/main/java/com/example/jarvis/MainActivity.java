@@ -1,6 +1,7 @@
 package com.example.jarvis;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.app.ActivityCompat;
 
 import android.Manifest;
@@ -8,11 +9,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Camera;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.provider.AlarmClock;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
@@ -31,11 +34,14 @@ import java.util.List;
 import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
+
+    public static final String USER_TOKEN = "name";
     private TextToSpeech mytts;
     private SpeechRecognizer mysr;
-    private ImageView imgbtn;
-    private TextView txtcmnd,txtclock;
+    private ImageView imgbtn, imgtool;
+    private TextView txtcmnd,txtclock,txtstate;
     private WifiManager wifiManager;
+    private TextView textView;
 
 
     @Override
@@ -45,6 +51,15 @@ public class MainActivity extends AppCompatActivity {
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
                 WindowManager.LayoutParams.FLAG_FULLSCREEN);
         setContentView(R.layout.activity_main);
+
+        imgtool = findViewById(R.id.imagetool);
+        imgtool.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                BottomSheetDialog bottomSheetDialog = new BottomSheetDialog();
+                bottomSheetDialog.show(getSupportFragmentManager(), "bottomsheet");
+            }
+        });
         wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
 
         initializeTextToSpeech();
@@ -53,6 +68,8 @@ public class MainActivity extends AppCompatActivity {
         imgbtn = findViewById(R.id.imagemic);
         txtcmnd = findViewById(R.id.txtcommand);
         txtclock = findViewById(R.id.txtclock);
+        txtstate = findViewById(R.id.txtstate);
+
 
         final Handler ha=new Handler();
         ha.postDelayed(new Runnable() {
@@ -84,6 +101,7 @@ public class MainActivity extends AppCompatActivity {
             mysr.setRecognitionListener(new RecognitionListener() {
                 @Override
                 public void onReadyForSpeech(Bundle params) {
+                    txtstate.setText("Listening...");
 
                 }
 
@@ -104,6 +122,7 @@ public class MainActivity extends AppCompatActivity {
 
                 @Override
                 public void onEndOfSpeech() {
+                    txtstate.setText("");
 
                 }
 
@@ -135,6 +154,7 @@ public class MainActivity extends AppCompatActivity {
     private void processResult(String command) {
 
         command = command.toLowerCase();
+        txtstate.setText("");
 
         txtcmnd.setText(command);
         if (command.indexOf("what") != -1) {
@@ -144,7 +164,7 @@ public class MainActivity extends AppCompatActivity {
             if (command.indexOf("time") != -1) {
                 Date now = new Date();
                 String time = DateUtils.formatDateTime(this, now.getTime(), DateUtils.FORMAT_SHOW_TIME);
-                speak("The time now is " + time + "sir");
+                speak("The time now is " + time + "  sir");
             }
         } else if (command.indexOf("time") != -1) {
             Date now = new Date();
@@ -198,7 +218,56 @@ public class MainActivity extends AppCompatActivity {
             }
             startActivity(intent);
         }
-    }
+        else if (command.indexOf("who created you") != -1  || command.indexOf("who made you") != -1) {
+        speak("I was created by Eevaan");
+        }
+        else if (command.indexOf("search for") != -1  || command.indexOf("do a search for") != -1) {
+            String[] split = command.split("for");
+            String substr = split[1];
+            Intent intent = new Intent(getApplicationContext(),BrowserActivity.class);
+            intent.putExtra(USER_TOKEN,substr);
+            speak("showing results for "+substr);
+            startActivity(intent);
+
+        }
+        else if (command.indexOf("thank you") != -1  || command.indexOf("good job") != -1) {
+            speak("anytime sir");
+        }
+        else if (command.indexOf("go to") != -1  || command.indexOf("visit to") != -1) {
+            String[] split = command.split("to");
+            String substr = split[1];
+            Intent intent = new Intent(getApplicationContext(),BrowserActivity.class);
+            intent.putExtra(USER_TOKEN,substr);
+            startActivity(intent);
+
+        }
+        else if (command.indexOf("remind me") != -1  || command.indexOf("set a reminder") != -1) {
+            speak("Okay Sir, I will remind you.");
+            initializeSpeechRecognizer();
+        }
+        else if (command.indexOf("goodbye") != -1) {
+            finish();
+            System.exit(0);
+
+        }
+        else if (command.indexOf("alarm") != -1) {
+
+            String[] split = command.split("at");
+            String substr = split[1];
+            String[] split1 = substr.split(":");
+            String hour = split[0];
+            String minit = split[1];
+            Intent intent = new Intent(AlarmClock.ACTION_SET_ALARM);
+            intent.putExtra(AlarmClock.EXTRA_HOUR, hour);
+            intent.putExtra(AlarmClock.EXTRA_MINUTES, minit);
+            startActivity(intent);
+        }
+        else
+        {
+            speak("I can not talk about this right now.");
+        }
+
+}
 
     private void initializeTextToSpeech() {
         mytts = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
@@ -211,7 +280,8 @@ public class MainActivity extends AppCompatActivity {
                 }
                 else {
                     mytts.setLanguage(Locale.UK);
-                    speak("Hello Eevaan");
+                    speak("");
+                    txtcmnd.setText("welcome");
                 }
             }
         });
@@ -228,7 +298,7 @@ public class MainActivity extends AppCompatActivity {
     {
         String currentTime = java.text.DateFormat.getTimeInstance().format(new Date());
         String currentDate = java.text.DateFormat.getDateInstance().format(new Date());
-        txtclock.setText(currentTime+"\n"+currentDate);
+        txtclock.setText(currentTime+"\n\n"+currentDate);
 
 
     }
@@ -237,5 +307,11 @@ public class MainActivity extends AppCompatActivity {
     protected void onPause() {
         super.onPause();
         mytts.shutdown();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        initializeTextToSpeech();
     }
 }
